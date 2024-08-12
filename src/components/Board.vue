@@ -13,25 +13,57 @@
                                     <template v-slot:default="{ isHovering, props }">
                                         <v-card v-bind="props" :color="computeColor(rowIndex, colIndex, isHovering)"
                                             @click="cellClick(rowIndex, colIndex)" class="grid-cell">
-
-                                            <v-avatar class="vertical-center" size="40">
-                                                <v-icon :color="board[rowIndex][colIndex].onTurn ? 'red' : 'black'"
-                                                    :icon="board[rowIndex][colIndex].icon" size="50"></v-icon>
-                                                <v-menu activator="parent" v-if="board[rowIndex][colIndex].onTurn && gameState.getCurrentState() == 'playerOptions'"
-                                                    location="center">
-                                                    <v-avatar style="margin-left: 100%" variant="flat" :color="item.color"
-                                                        v-for="(item, index) in playerOptions" :key="index" :value="index">
-                                                        <v-icon :icon="item.icon" @click="item.event"></v-icon>
+                                            <v-menu v-model="show" :close-on-content-click="false" location="end" offset-y>
+                                                <!-- Renamed 'props' to 'menuProps' here to avoid conflict -->
+                                                <template v-slot:activator="{ on, props: menuProps }">
+                                                    <v-avatar class="vertical-center" size="40" v-bind="menuProps"
+                                                        @click="cellClick(rowIndex, colIndex)">
+                                                        <v-icon :color="board[rowIndex][colIndex].onTurn ? 'red' : 'black'"
+                                                            :icon="board[rowIndex][colIndex].icon" size="50"></v-icon>
                                                     </v-avatar>
-                                                </v-menu>
-                                                <v-menu activator="parent" v-if="board[rowIndex][colIndex].onTurn && gameState.getCurrentState() == 'attackOption'"
-                                                    location="center">
-                                                    <v-chip style="margin-left: 100%" variant="flat" color="red"
-                                                        v-for="(item, index) in board[rowIndex][colIndex].attackOptionList" :key="index" :value="index">
-                                                        <v-icon :icon="item.icon" @click="item.event">{{ item.name }}</v-icon>
-                                                    </v-chip>
-                                                </v-menu>
-                                            </v-avatar>
+                                                </template>
+
+                                                <v-card color="rgba(255, 255, 255, .3)" style="border: 1px solid black;"
+                                                    variant="flat" elevation="0"
+                                                    v-if="board[rowIndex][colIndex].onTurn && gameState.getCurrentState() === 'playerOptions'">
+                                                    <v-card-text>
+                                                        <div v-for="option in playerOptions" :key="option.text">
+                                                            <v-chip :color="option.color" variant="flat"
+                                                                :prepend-icon="option.icon" @click="option.event"
+                                                                class="text-overline">
+                                                                {{ option.text }}
+                                                            </v-chip>
+                                                        </div>
+                                                    </v-card-text>
+                                                </v-card>
+                                                <v-card color="rgba(255, 255, 255, .3)" style="border: 1px solid black;"
+                                                    variant="flat" elevation="0"
+                                                    v-if="board[rowIndex][colIndex].onTurn && gameState.getCurrentState() === 'attackOption'">
+                                                    <v-card-text>
+                                                        <div v-for="option in board[rowIndex][colIndex].attackOptionList"
+                                                            :key="option.text">
+                                                            <v-chip variant="flat" color="black" :prepend-icon="option.icon"
+                                                                class="text-overline" @click="attackOptionSelected(option)"  :disabled="board[rowIndex][colIndex].currentActionPoints < option.cost">
+                                                                {{ option.name }}
+                                                                <v-tooltip activator="parent" location="end">
+                                                                    <v-card color="white" variant="flat">
+                                                                        <v-card-text>
+                                                                            <h4>Description</h4>
+                                                                            {{ option.tooltipText }}
+                                                                            <h4>Damage</h4>
+                                                                            {{ option.damage }} ({{ option.damageType }})
+                                                                            <h4>Range</h4>
+                                                                            {{ option.rangeMin }} - {{ option.rangeMax }}
+                                                                            <h4>Cost</h4>
+                                                                            {{ option.cost }} point
+                                                                        </v-card-text>
+                                                                    </v-card>
+                                                                </v-tooltip>
+                                                            </v-chip>
+                                                        </div>
+                                                    </v-card-text>
+                                                </v-card>
+                                            </v-menu>
                                         </v-card>
                                     </template>
                                 </v-hover>
@@ -62,7 +94,7 @@
 </template>
 
 <script setup>
-import { reactive, watch } from 'vue';
+import { reactive, watch, ref } from 'vue';
 
 const numRows = 8;
 const rows = Array.from({ length: numRows });
@@ -70,26 +102,30 @@ const rows = Array.from({ length: numRows });
 const numCols = 8;
 const cols = Array.from({ length: numCols });
 
+const show = ref(true);
+
 const playerAttackOptionList = [
     {
         name: "Stab",
         icon: 'mdi-knife-military',
-        tooltipText: 'Attack an enemy from a closeby',
+        tooltipText: 'Attack an enemy from nearby',
         damage: 5,
         damageType: 'physical',
         cost: 1,
         rangeMin: 1,
         rangeMax: 1,
+        AOE: 'single',
     },
     {
         name: "Sling",
-        icon: 'target',
-        tooltipText: 'Attack an enemy from a distance.',
+        icon: 'mdi-target',
+        tooltipText: 'Attack an enemy from a distance',
         damage: 5,
-        damageType: 'physical',
+        damageType: 'piercing',
         cost: 1,
         rangeMin: 3,
         rangeMax: 7,
+        AOE: 'single',
     }
 ]
 
@@ -104,7 +140,10 @@ const player = {
     maxHealth: 50,
     maxMoveRange: 4,
     currentMoveRange: 4,
+    currentActionPoints: 2,
+    maxActionPoints: 2,
     onTurn: false,
+    isEntity: true,
     attackOptionList: playerAttackOptionList,
 }
 
@@ -119,7 +158,10 @@ const enemy = {
     maxHealth: 50,
     maxMoveRange: 4,
     currentMoveRange: 4,
+    currentActionPoints: 2,
+    maxActionPoints: 2,
     onTurn: false,
+    isEntity: true,
     attackOptionList: playerAttackOptionList,
 }
 
@@ -133,6 +175,7 @@ const empty = {
     health: 0,
     maxHealth: 0,
     onTurn: false,
+    isEntity: false,
     attackOptionList: [],
 }
 
@@ -158,6 +201,43 @@ const playerOptions = [{
 
 function testConsole() {
     console.log("test")
+}
+
+const selectedAttack = ref()
+
+function attackOptionSelected(option) {
+    gameState.transition('attackPlacement')
+    showTargetableTiles(option)
+    selectedAttack.value = option
+}
+
+function showTargetableTiles(attackOption) {
+    let position = findObjectBoardPosition(turnSystem[0].entity);
+    if (!position) {
+        console.error("Object not found on the board");
+    }
+
+    let rowIndex = position.rowIndex;
+    let colIndex = position.colIndex;
+    let minRange = attackOption.rangeMin;
+    let maxRange = attackOption.rangeMax;
+    // Function to check if a position is within the board boundaries
+    function isWithinBoard(row, col) {
+        return row >= 0 && row < board.length && col >= 0 && col < board[0].length;
+    }
+
+    // Set tiles that are in range of obj.currentMoveRange to highlight
+    for (let row = rowIndex - maxRange; row <= rowIndex + maxRange; row++) {
+        for (let col = colIndex - maxRange; col <= colIndex + maxRange; col++) {
+            if (isWithinBoard(row, col)) {
+                // Calculate Manhattan distance to ensure the tile is within currentMoveRange
+                let distance = Math.abs(row - rowIndex) + Math.abs(col - colIndex);
+                if (distance >= minRange && distance <= maxRange) {
+                    board[row][col].highlight = true;
+                }
+            }
+        }
+    }
 }
 
 let turnSystem = reactive([{ entity: { ...player }, onTurn: false }, { entity: { ...enemy }, onTurn: false }, { entity: { ...enemy }, onTurn: false }, { entity: { ...enemy }, onTurn: false }])
@@ -194,6 +274,7 @@ function stopTurn() {
     turnSystem[0].onTurn = false;
     turnSystem[0].entity.onTurn = false;
     turnSystem[0].entity.currentMoveRange = turnSystem[0].entity.maxMoveRange
+    turnSystem[0].entity.currentActionPoints = turnSystem[0].entity.maxActionPoints
 }
 
 function skipOption() {
@@ -230,7 +311,7 @@ function move(obj, targetRow, targetCol) {
 
 function attackOption() {
     gameState.transition('attackOption')
-    
+
 }
 
 function showAccessibleTiles(obj) {
@@ -308,6 +389,11 @@ function computeColor(rowIndex, colIndex, isHovering) {
             return "yellow"
         }
     }
+    if (gameState.getCurrentState() == 'attackPlacement') {
+        if (board[rowIndex][colIndex].highlight) {
+            return "red"
+        }
+    }
 
     if (board[rowIndex][colIndex].selected) {
         return "yellow"
@@ -338,14 +424,56 @@ function unhighlightBoard() {
     }
 }
 
+function getAffected(rowIndex, colIndex, attack){
+    if (attack.AOE == 'single') {
+        if (board[rowIndex][colIndex].isEntity){
+            return [board[rowIndex][colIndex]]
+        }
+    } 
+
+    return []
+}
+
+function applyAttack(affected, attack){
+    if (affected.length == 0) return
+    for (let i = 0; i < affected.length; i++) {
+        affected[i].health -= attack.damage
+    }
+}
+
+function executeAttack(rowIndex, colIndex, attack) {
+    gameState.transition('attack')
+    let affected = getAffected(rowIndex, colIndex, attack)
+    turnSystem[0].entity.currentActionPoints -= attack.cost;
+    applyAttack(affected, attack)
+
+}
+
 function cellClick(rowIndex, colIndex) {
+    console.log("Here")
     if (gameState.getCurrentState() == 'moveOption') {
         if (!board[rowIndex][colIndex].highlight) {
             unhighlightBoard();
             gameState.transition('playerOptions')
             return
         }
+
         move(turnSystem[0].entity, rowIndex, colIndex)
+    }
+
+    if (gameState.getCurrentState() == 'attackOption') {
+        gameState.transition('playerOptions')
+    }
+
+    if (gameState.getCurrentState() == 'attackPlacement') {
+        if (!board[rowIndex][colIndex].highlight) {
+            unhighlightBoard();
+            gameState.transition('attackOption')
+            return
+        }
+        executeAttack(rowIndex, colIndex, selectedAttack.value)
+        unhighlightBoard();
+        gameState.transition('attackOption')
     }
 
     if (gameState.getCurrentState() == 'idle') {
@@ -391,14 +519,19 @@ const gameStateConfig = {
         'skip': { player: 'player', enemy: 'enemy' },
         'moveOption': { playerOptions: 'playerOptions', move: 'move' },
         'move': { playerOptions: 'playerOptions' },
-        'attackOption': { attack: 'attack' },
-        'attack': { playerOptions: 'playerOptions' },
+        'attackOption': { attackPlacement: 'attackPlacement', playerOptions: 'playerOptions' },
+        'attackPlacement': { attack: 'attack', attackOption: 'attackOption'},
+        'attack': { attackOption: 'attackOption' },
         'enemy': { skip: 'skip' },
         'wait': { idle: 'idle', player: 'player', enemy: 'enemy', skip: 'skip' }
     }
 };
 
 const gameState = reactive(new StateMachine(gameStateConfig));
+
+watch(show, (oldVal) => {
+    show.value = true;
+})
 
 </script>
 
@@ -429,5 +562,9 @@ const gameState = reactive(new StateMachine(gameStateConfig));
     transform: translateY(-50%);
     margin-left: 100%;
     z-index: 10000000 !important;
+}
+
+.v-tooltip>.v-overlay__content {
+    background: rgba(0, 0, 0, 0) !important;
 }
 </style>
