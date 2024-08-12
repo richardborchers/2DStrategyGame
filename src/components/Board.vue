@@ -167,7 +167,7 @@ const enemy = {
 
 const empty = {
     player: false,
-    occupied: true,
+    occupied: false,
     selected: false,
     text: '',
     icon: '',
@@ -335,7 +335,8 @@ function showAccessibleTiles(obj) {
             if (isWithinBoard(row, col)) {
                 // Calculate Manhattan distance to ensure the tile is within currentMoveRange
                 let distance = Math.abs(row - rowIndex) + Math.abs(col - colIndex);
-                if (distance == 0) continue;
+                if (distance == 0) continue; // Can not walk on self
+                if (board[row][col].occupied) continue;
                 if (distance <= currentMoveRange) {
                     board[row][col].highlight = true;
                 }
@@ -457,7 +458,6 @@ function cellClick(rowIndex, colIndex) {
             gameState.transition('playerOptions')
             return
         }
-
         move(turnSystem[0].entity, rowIndex, colIndex)
     }
 
